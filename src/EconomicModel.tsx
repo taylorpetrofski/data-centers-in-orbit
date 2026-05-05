@@ -5,13 +5,13 @@
  * Economic Viability Model — Data Centers in Orbit
  * Interactive model for CS 4501 final project
  */
- 
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, Info, BarChart2, Sliders, Zap } from 'lucide-react';
- 
+
 // ─── Types ────────────────────────────────────────────────────────────────────
- 
+
 interface SliderParam {
   id: string;
   label: string;
@@ -26,11 +26,11 @@ interface SliderParam {
   description: string;
   format?: (v: number) => string;
 }
- 
+
 type Scenario = 'pessimistic' | 'current' | 'optimistic';
- 
+
 // ─── Constants ────────────────────────────────────────────────────────────────
- 
+
 const SCENARIO_PRESETS: Record<Scenario, Record<string, number>> = {
   pessimistic: {
     launchCost: 2500,
@@ -60,15 +60,15 @@ const SCENARIO_PRESETS: Record<Scenario, Record<string, number>> = {
     launchCostDeclineRate: 22,
   },
 };
- 
+
 const SCENARIO_LABELS: Record<Scenario, string> = {
   pessimistic: 'Pessimistic 2025',
   current: 'Current 2025',
   optimistic: 'Optimistic 2030',
 };
- 
+
 // ─── Model Logic ──────────────────────────────────────────────────────────────
- 
+
 /**
  * Computes levelized cost of compute ($/PFLOP-day) for both earth and space
  * over a multi-year horizon and returns year-by-year data.
@@ -92,42 +92,43 @@ function computeModel(params: Record<string, number>, years: number = 10) {
     solarEfficiency,    // % of theoretical solar harvest actually usable
     launchCostDeclineRate, // % per year launch cost falls (compounding)
   } = params;
- 
+
   // Fixed assumptions (sourced)
   const HW_KG_PER_PFLOP = 0.8;          // kg of hardware per PFLOP; Starcloud WP
   const EARTH_ENERGY_KWH_PER_PFLOP_DAY = 2.4; // kWh; Pew Research / IEA 2025
-  const SPACE_SOLAR_KW_PER_KG = 0.15;   // kW solar per kg of panel mass; ESA estimates
   const EARTH_PUE = 1.5;                // Power Usage Effectiveness; Uptime Inst. 2024
   const EARTH_LAND_COOLING_PER_PFLOP_DAY = 0.0012; // $/PFLOP-day; UMich STPP 2025
   const SPACE_LAUNCH_STRUCT_RATIO = 1.4; // structural/thermal overhead multiplier on HW mass
   const SPACE_OPS_ANNUAL = 0.08;        // annual ops cost as % of hardware cost (no physical access)
-  const HW_COST_PER_KG = 8000;         // $/kg of compute hardware (GPU density); industry est.
+  // Hardware cost per PFLOP at hyperscale (amortized bulk pricing, not retail GPU cost)
+  // H100 cluster at scale: ~$100/PFLOP effective after volume discounts; Starcloud WP 2026
+  const HW_COST_PER_PFLOP = 100;
   const SPACE_LATENCY_PENALTY = 0.04;  // 4% cost penalty for latency-sensitive workloads
- 
+
   const results = [];
- 
+
   for (let year = 0; year <= years; year++) {
     // Launch cost falls each year due to Starship + competition
     const launchCostYear = launchCost * Math.pow(1 - launchCostDeclineRate / 100, year);
- 
+
     // Earth energy prices trend upward ~3%/yr (EIA projection)
     const earthEnergyYear = earthEnergy * Math.pow(1.03, year);
- 
+
     // Compute efficiency improves (hardware does more per kg over time)
     const computeMultiplier = Math.pow(2, year / computeDoublingYears);
- 
+
     // ── Earth TCO ($/PFLOP-day) ──
     const earthEnergyCost = EARTH_ENERGY_KWH_PER_PFLOP_DAY * earthEnergyYear * EARTH_PUE;
     const earthRegCost = (earthEnergyCost + EARTH_LAND_COOLING_PER_PFLOP_DAY) * (regulationCost / 100);
     const earthTotal = (earthEnergyCost + EARTH_LAND_COOLING_PER_PFLOP_DAY + earthRegCost) / computeMultiplier;
- 
+
     // ── Space TCO ($/PFLOP-day) ──
     // Hardware mass + structural overhead
     const massPerPflop = (HW_KG_PER_PFLOP * SPACE_LAUNCH_STRUCT_RATIO) / computeMultiplier;
     // Amortize launch + hardware cost over lifespan (days)
     const lifespanDays = hardwareLifespan * 365;
     const launchHwCostPerPflopDay =
-      (massPerPflop * launchCostYear + (HW_KG_PER_PFLOP * HW_COST_PER_KG) / computeMultiplier) / lifespanDays;
+      (massPerPflop * launchCostYear + HW_COST_PER_PFLOP / computeMultiplier) / lifespanDays;
     // Solar energy: free generation, but panels cost mass to launch
     const solarPanelMassPerKflop = 0.05 / computeMultiplier; // panels per PFLOP
     const solarLaunchCost = solarPanelMassPerKflop * launchCostYear;
@@ -139,10 +140,10 @@ function computeModel(params: Record<string, number>, years: number = 10) {
       (launchHwCostPerPflopDay + solarEnergyCost + spaceOpsCost) *
       spaceEnergyAdjust +
       SPACE_LATENCY_PENALTY * earthTotal;
- 
+
     // Cost ratio < 1 means space is cheaper
     const ratio = spaceTotal / earthTotal;
- 
+
     results.push({
       year: 2025 + year,
       earthTotal: Math.max(0.0001, earthTotal),
@@ -152,10 +153,10 @@ function computeModel(params: Record<string, number>, years: number = 10) {
       viable: ratio < 1,
     });
   }
- 
+
   return results;
 }
- 
+
 /**
  * Sensitivity analysis: vary each param ±20% from baseline,
  * return how much the year-5 space/earth ratio changes.
@@ -164,7 +165,7 @@ function computeSensitivity(params: Record<string, number>) {
   const baseResults = computeModel(params, 10);
   const baseRatio = baseResults[5].ratio;
   const DELTA = 0.20;
- 
+
   const paramLabels: Record<string, string> = {
     launchCost: 'Launch cost ($/kg)',
     earthEnergy: 'Earth energy price',
@@ -174,7 +175,7 @@ function computeSensitivity(params: Record<string, number>) {
     solarEfficiency: 'Solar efficiency',
     launchCostDeclineRate: 'Launch cost decline rate',
   };
- 
+
   return Object.keys(params).map((key) => {
     const highParams = { ...params, [key]: params[key] * (1 + DELTA) };
     const lowParams = { ...params, [key]: params[key] * (1 - DELTA) };
@@ -193,13 +194,13 @@ function computeSensitivity(params: Record<string, number>) {
     };
   }).sort((a, b) => b.swing - a.swing);
 }
- 
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
- 
+
 const InfoTooltip = ({ text, url }: { text: string; url: string }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
- 
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -207,7 +208,7 @@ const InfoTooltip = ({ text, url }: { text: string; url: string }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
- 
+
   return (
     <div ref={ref} className="relative inline-block ml-2 align-middle">
       <button
@@ -234,7 +235,7 @@ const InfoTooltip = ({ text, url }: { text: string; url: string }) => {
     </div>
   );
 };
- 
+
 const SliderRow = ({
   param,
   onChange,
@@ -247,7 +248,7 @@ const SliderRow = ({
     : param.unitPrefix
     ? `${param.unit}${param.value.toLocaleString()}`
     : `${param.value.toLocaleString()}${param.unit}`;
- 
+
   return (
     <div className="border-b border-deep-teal/10 pb-4 last:border-0 last:pb-0">
       <div className="flex items-center justify-between mb-1">
@@ -281,7 +282,7 @@ const SliderRow = ({
     </div>
   );
 };
- 
+
 // Simple canvas-based line chart (no external deps)
 const CostChart = ({
   data,
@@ -289,34 +290,34 @@ const CostChart = ({
   data: ReturnType<typeof computeModel>;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
- 
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
- 
+
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
- 
+
     const W = rect.width;
     const H = rect.height;
     const PAD = { top: 16, right: 20, bottom: 36, left: 58 };
     const chartW = W - PAD.left - PAD.right;
     const chartH = H - PAD.top - PAD.bottom;
- 
+
     ctx.clearRect(0, 0, W, H);
- 
+
     const allVals = data.flatMap((d) => [d.earthTotal, d.spaceTotal]);
     const maxVal = Math.max(...allVals) * 1.15;
     const minVal = 0;
- 
+
     const xScale = (i: number) => PAD.left + (i / (data.length - 1)) * chartW;
     const yScale = (v: number) => PAD.top + chartH - ((v - minVal) / (maxVal - minVal)) * chartH;
- 
+
     // Grid lines
     ctx.strokeStyle = 'rgba(13,71,78,0.08)';
     ctx.lineWidth = 1;
@@ -332,7 +333,7 @@ const CostChart = ({
       ctx.textAlign = 'right';
       ctx.fillText(`$${val.toFixed(4)}`, PAD.left - 4, y + 3);
     }
- 
+
     // X axis labels
     ctx.fillStyle = 'rgba(13,71,78,0.4)';
     ctx.font = '9px JetBrains Mono, monospace';
@@ -342,7 +343,7 @@ const CostChart = ({
         ctx.fillText(String(d.year), xScale(i), H - PAD.bottom + 16);
       }
     });
- 
+
     // Viability shading
     let inViableZone = false;
     let startX = 0;
@@ -360,7 +361,7 @@ const CostChart = ({
       ctx.fillStyle = 'rgba(13,71,78,0.06)';
       ctx.fillRect(startX, PAD.top, xScale(data.length - 1) - startX, chartH);
     }
- 
+
     // Earth line
     ctx.beginPath();
     ctx.strokeStyle = '#0D474E';
@@ -372,7 +373,7 @@ const CostChart = ({
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
- 
+
     // Space line
     ctx.beginPath();
     ctx.strokeStyle = '#E85D04';
@@ -385,7 +386,7 @@ const CostChart = ({
     });
     ctx.stroke();
     ctx.setLineDash([]);
- 
+
     // Crossover marker
     const crossIdx = data.findIndex((d) => d.viable);
     if (crossIdx > 0) {
@@ -404,7 +405,7 @@ const CostChart = ({
       ctx.fillText('VIABLE', x, PAD.top + 10);
     }
   }, [data]);
- 
+
   return (
     <canvas
       ref={canvasRef}
@@ -413,7 +414,7 @@ const CostChart = ({
     />
   );
 };
- 
+
 // Sensitivity bar chart
 const SensitivityChart = ({
   data,
@@ -421,7 +422,7 @@ const SensitivityChart = ({
   data: ReturnType<typeof computeSensitivity>;
 }) => {
   const maxSwing = Math.max(...data.map((d) => d.swing));
- 
+
   return (
     <div className="space-y-3">
       {data.map((item) => {
@@ -462,15 +463,15 @@ const SensitivityChart = ({
     </div>
   );
 };
- 
+
 // ─── Main Page Component ──────────────────────────────────────────────────────
- 
+
 export default function EconomicModel() {
   const [activeScenario, setActiveScenario] = useState<Scenario>('current');
   const [activeTab, setActiveTab] = useState<'model' | 'sensitivity'>('model');
- 
+
   const [params, setParams] = useState<Record<string, number>>(SCENARIO_PRESETS.current);
- 
+
   const sliderDefs: SliderParam[] = [
     {
       id: 'launchCost',
@@ -572,25 +573,25 @@ export default function EconomicModel() {
       description: 'Fraction of theoretical solar irradiance actually usable',
     },
   ];
- 
+
   const handleSliderChange = (id: string, val: number) => {
     setParams((prev) => ({ ...prev, [id]: val }));
     setActiveScenario('current'); // leave preset on manual change
   };
- 
+
   const applyScenario = (s: Scenario) => {
     setActiveScenario(s);
     setParams(SCENARIO_PRESETS[s]);
   };
- 
+
   const modelData = useMemo(() => computeModel(params, 10), [params]);
   const sensitivityData = useMemo(() => computeSensitivity(params), [params]);
- 
+
   const year5 = modelData[5];
   const year10 = modelData[10];
   const breakEvenYear = modelData.find((d) => d.viable)?.year;
   const currentRatio = modelData[0].ratio;
- 
+
   const verdict =
     currentRatio < 0.85
       ? { text: 'Space wins now', color: '#0D474E', bg: 'rgba(13,71,78,0.08)' }
@@ -599,7 +600,7 @@ export default function EconomicModel() {
       : currentRatio < 1.5
       ? { text: 'Space trails — watch trend', color: '#E4A725', bg: 'rgba(228,167,37,0.1)' }
       : { text: 'Space unviable', color: '#E85D04', bg: 'rgba(232,93,4,0.08)' };
- 
+
   return (
     <div className="pt-40 max-w-7xl mx-auto px-6 grainy-texture pb-32">
       {/* ── Page Header ── */}
@@ -626,7 +627,7 @@ export default function EconomicModel() {
           </p>
         </div>
       </motion.div>
- 
+
       {/* ── Methodology note ── */}
       <div className="mb-12 bg-white/60 retro-border p-6 max-w-4xl">
         <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-deep-teal/60 mb-3 flex items-center gap-2">
@@ -636,7 +637,7 @@ export default function EconomicModel() {
           This model computes the <strong>levelized cost of compute</strong> ($/PFLOP-day) for Earth-based vs. orbital data centers across a 10-year horizon. Earth TCO includes energy, cooling, land, and regulatory overhead. Space TCO includes launch amortization, hardware replacement, solar panel mass, and a latency penalty for workloads requiring low-latency. Each variable's default range is grounded in cited sources — click the <span className="font-mono text-atomic-orange">i</span> icon on any slider to see the source. The model is a simplified first-principles estimate, not a proprietary industry projection.
         </p>
       </div>
- 
+
       {/* ── Scenario presets ── */}
       <div className="mb-10">
         <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-deep-teal/50 mb-4">
@@ -658,7 +659,7 @@ export default function EconomicModel() {
           ))}
         </div>
       </div>
- 
+
       {/* ── Main Grid ── */}
       <div className="grid lg:grid-cols-[380px_1fr] gap-12 items-start">
         {/* Left: Sliders */}
@@ -686,7 +687,7 @@ export default function EconomicModel() {
             </p>
           </div>
         </div>
- 
+
         {/* Right: Charts + Results */}
         <div className="space-y-8">
           {/* Summary cards */}
@@ -731,7 +732,7 @@ export default function EconomicModel() {
               </div>
             ))}
           </div>
- 
+
           {/* Verdict banner */}
           <div
             className="border-2 border-deep-teal/20 p-4 flex items-center gap-4"
@@ -752,7 +753,7 @@ export default function EconomicModel() {
               </span>
             </div>
           </div>
- 
+
           {/* Tab bar */}
           <div className="border-b-2 border-deep-teal/20 flex gap-0">
             {[
@@ -773,7 +774,7 @@ export default function EconomicModel() {
               </button>
             ))}
           </div>
- 
+
           {/* Chart area */}
           {activeTab === 'model' && (
             <div className="bg-white retro-border p-6">
@@ -802,7 +803,7 @@ export default function EconomicModel() {
               </p>
             </div>
           )}
- 
+
           {activeTab === 'sensitivity' && (
             <div className="bg-white retro-border p-6">
               <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-deep-teal/60 mb-2 flex items-center gap-2">
@@ -825,7 +826,7 @@ export default function EconomicModel() {
               </div>
             </div>
           )}
- 
+
           {/* Year-by-year table */}
           <div className="bg-white retro-border p-6">
             <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-deep-teal/60 mb-4 flex items-center gap-2">
@@ -878,7 +879,7 @@ export default function EconomicModel() {
               </table>
             </div>
           </div>
- 
+
           {/* Caveats */}
           <div className="bg-mustard/10 border-2 border-mustard p-6">
             <h4 className="text-[10px] font-mono uppercase tracking-[0.3em] text-mustard font-bold mb-3 flex items-center gap-2">
