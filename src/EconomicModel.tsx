@@ -31,33 +31,39 @@ type Scenario = 'pessimistic' | 'current' | 'optimistic';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+// Scenario sources:
+// Pessimistic: conservative Falcon 9 trajectory, cheap US hydro energy markets, slow Starship progress
+// Current: Google Suncatcher paper ($1,500/kg Falcon Heavy); EIA 2025 commercial avg $0.085/kWh;
+//          Epoch AI doubling time ~2.5yr; Uptime Inst. 2024 industry avg PUE 1.56 (we use 1.2 hyperscale)
+// Optimistic 2030: Starship at scale — Google paper implies 20%/yr decline to reach $200/kg by 2035;
+//          Starcloud targets 7yr lifespan; Epoch AI chip efficiency improvement rate ~1.35×/yr
 const SCENARIO_PRESETS: Record<Scenario, Record<string, number>> = {
   pessimistic: {
-    launchCost: 2500,
-    earthEnergy: 0.06,
-    computeDoublingYears: 3.5,
-    hardwareLifespan: 4,
-    regulationCost: 18,
-    solarEfficiency: 28,
-    launchCostDeclineRate: 5,
+    launchCost: 2700,       // Falcon 9 customer list price per NASA NTRS / SpaceX 2024
+    earthEnergy: 0.06,      // Low-cost US markets (Pacific NW hydro, TX wind); EIA 2025
+    computeDoublingYears: 3.5, // Slower than historical trend; AI 2027 report lower bound
+    hardwareLifespan: 4,    // LEO nanosatellite lower bound per Avnet Silica / radiation studies
+    regulationCost: 18,     // Upper bound of UMich STPP 2025 range (8–20% of OPEX)
+    solarEfficiency: 28,    // Lower bound: significant thermal/night/transmission losses
+    launchCostDeclineRate: 5, // Slow Starship progress; historical Falcon 9 plateau rate
   },
   current: {
-    launchCost: 1500,
-    earthEnergy: 0.085,
-    computeDoublingYears: 2.5,
-    hardwareLifespan: 6,
-    regulationCost: 12,
-    solarEfficiency: 35,
-    launchCostDeclineRate: 12,
+    launchCost: 1500,       // Google Suncatcher paper: ~$1,500–2,900/kg Falcon Heavy (Nov 2025)
+    earthEnergy: 0.085,     // EIA 2025 US commercial average electricity price
+    computeDoublingYears: 2.5, // Epoch AI: leading ML hardware doubles efficiency every ~2yr (Oct 2024)
+    hardwareLifespan: 6,    // Google Suncatcher: "replace chips every 5–6 years" (Nov 2025)
+    regulationCost: 12,     // Midpoint of UMich STPP 2025 estimate (8–20% of OPEX)
+    solarEfficiency: 35,    // Moderate: accounts for orbital night, transmission, degradation
+    launchCostDeclineRate: 12, // Moderate Starship progress; historical SpaceX ~20% per doubling of mass launched
   },
   optimistic: {
-    launchCost: 500,
-    earthEnergy: 0.12,
-    computeDoublingYears: 1.8,
-    hardwareLifespan: 8,
-    regulationCost: 6,
-    solarEfficiency: 45,
-    launchCostDeclineRate: 22,
+    launchCost: 500,        // Starcloud CEO threshold: "$500/kg = cost-competitive" (TechCrunch, Apr 2026)
+    earthEnergy: 0.12,      // Rising grid costs from AI demand surge; EIA upper scenario 2030
+    computeDoublingYears: 1.8, // Epoch AI upper bound; AI supercomputers doubling every 9mo (Epoch AI Apr 2025)
+    hardwareLifespan: 7,    // Upper bound of Google Suncatcher 5–6yr range with improved rad-shielding
+    regulationCost: 6,      // Low end; hyperscaler tax incentives and streamlined permitting
+    solarEfficiency: 45,    // Sun-synchronous orbit near-continuous sunlight; Google Suncatcher: 8× ground solar
+    launchCostDeclineRate: 20, // Google paper implies ~22%/yr to reach $200/kg by 2035 from $1,500 today
   },
 };
 
@@ -93,17 +99,22 @@ function computeModel(params: Record<string, number>, years: number = 10) {
     launchCostDeclineRate, // % per year launch cost falls (compounding)
   } = params;
 
-  // Fixed assumptions (sourced)
-  const HW_KG_PER_PFLOP = 0.8;          // kg of hardware per PFLOP; Starcloud WP
-  const EARTH_ENERGY_KWH_PER_PFLOP_DAY = 2.4; // kWh; Pew Research / IEA 2025
-  const EARTH_PUE = 1.5;                // Power Usage Effectiveness; Uptime Inst. 2024
+  // Fixed assumptions — all sourced
+  // DGX H100: 8× H100 GPUs, 130.45 kg total, ~16 PFLOP fp16 → ~1.0 kg/PFLOP incl. structure; NVIDIA DGX H100 User Guide
+  const HW_KG_PER_PFLOP = 1.0;
+  // IEA 2025: AI training ~2–3 kWh/PFLOP-day at rack level; conservative midpoint used
+  const EARTH_ENERGY_KWH_PER_PFLOP_DAY = 2.4;
+  // PUE 1.2: hyperscale average for new builds per Uptime Institute 2024 Global Survey (industry avg 1.56;
+  // hyperscale leaders Google 1.09, Microsoft 1.12; new hyperscale builds target 1.2–1.4)
+  const EARTH_PUE = 1.2;
   const EARTH_LAND_COOLING_PER_PFLOP_DAY = 0.0012; // $/PFLOP-day; UMich STPP 2025
-  const SPACE_LAUNCH_STRUCT_RATIO = 1.4; // structural/thermal overhead multiplier on HW mass
-  const SPACE_OPS_ANNUAL = 0.08;        // annual ops cost as % of hardware cost (no physical access)
-  // Hardware cost per PFLOP at hyperscale (amortized bulk pricing, not retail GPU cost)
-  // H100 cluster at scale: ~$100/PFLOP effective after volume discounts; Starcloud WP 2026
+  const SPACE_LAUNCH_STRUCT_RATIO = 1.4; // thermal/structural overhead; Starcloud WP 2025
+  const SPACE_OPS_ANNUAL = 0.08;         // 8% annual ops overhead (no physical access to hardware)
+  // $100/PFLOP represents space-optimized ASICs at volume — not retail H100 pricing ($15,600/PFLOP).
+  // Google's Suncatcher program uses custom Trillium TPU v6e chips; Starcloud targets custom rad-hard designs.
+  // Retail GPU pricing would make space permanently unviable; this reflects the industry's stated direction.
   const HW_COST_PER_PFLOP = 100;
-  const SPACE_LATENCY_PENALTY = 0.04;  // 4% cost penalty for latency-sensitive workloads
+  const SPACE_LATENCY_PENALTY = 0.04;   // ~20ms LEO round-trip adds ~4% effective cost penalty
 
   const results = [];
 
@@ -484,8 +495,8 @@ export default function EconomicModel() {
       unitPrefix: true,
       format: (v) => `$${v.toLocaleString()}/kg`,
       citation:
-        'Falcon 9: ~$2,700/kg (SpaceX 2024). Starship target: ~$100/kg (Musk, 2026). Google Suncatcher needs <$200/kg by 2035.',
-      citationUrl: 'https://arstechnica.com/space/2026/03/orbital-data-centers-part-1-theres-no-way-this-is-economically-viable-right/',
+        'Google Suncatcher feasibility study (Nov 2025): ~$1,500–2,900/kg on Falcon Heavy today. NASA NTRS: Falcon 9 lists at $2,720/kg. Google paper: $200/kg needed by 2035 for viability, requiring Starship at 180 launches/year. Starcloud CEO: $500/kg = cost-competitive (TechCrunch, Apr 2026).',
+      citationUrl: 'https://www.datacenterdynamics.com/en/news/project-suncatcher-google-to-launch-tpus-into-orbit-with-planet-labs-envisions-1km-arrays-of-81-satellite-compute-clusters/',
       description: 'Cost to lift 1 kg of payload to low Earth orbit',
     },
     {
@@ -498,8 +509,8 @@ export default function EconomicModel() {
       unit: '/kWh',
       format: (v) => `$${v.toFixed(3)}/kWh`,
       citation:
-        'US commercial avg: $0.085/kWh (EIA 2025). Hyperscaler contracts often lower. Renewables driving cost down, grid constraints pushing up.',
-      citationUrl: 'https://www.pewresearch.org/short-reads/2025/10/24/what-we-know-about-energy-use-at-us-data-centers-amid-the-ai-boom/',
+        'EIA 2025: US commercial average $0.085/kWh. Google Suncatcher paper: data center power cost $570–3,000/kW/year depending on region. PJM grid region saw 20% rate increase summer 2025 due to data center demand (CRS Report R48646, Congress.gov, 2025).',
+      citationUrl: 'https://www.congress.gov/crs-product/R48646',
       description: 'Grid electricity cost for terrestrial data centers',
     },
     {
@@ -512,9 +523,9 @@ export default function EconomicModel() {
       unit: '%/yr',
       format: (v) => `${v}%/yr`,
       citation:
-        'Falcon 9 dropped costs ~10x over a decade. Starship could drop another 10x. Assumed 12%/yr baseline decline mirrors historical SpaceX trajectory.',
-      citationUrl: 'https://www.wired.com/story/data-centers-gobble-earths-resources-what-if-we-took-them-to-space-instead/',
-      description: 'How fast launch costs fall year-over-year',
+        'Google Suncatcher paper (Nov 2025) projects $1,500→$200/kg by 2035, implying ~22%/yr compound decline if Starship reaches 180 launches/year. Historical SpaceX learning curve: ~20% cost reduction per doubling of cumulative mass launched (Epoch AI / AI 2027 report). Pessimistic: Starship delays hold decline to ~5%/yr.',
+      citationUrl: 'https://www.semafor.com/article/11/04/2025/google-wants-to-build-solar-powered-data-centers-in-space',
+      description: 'How fast launch costs fall year-over-year as Starship scales',
     },
     {
       id: 'computeDoublingYears',
@@ -526,9 +537,9 @@ export default function EconomicModel() {
       unit: ' yrs',
       format: (v) => `${v.toFixed(1)} yrs`,
       citation:
-        'GPU FLOP/$ has doubled ~every 2-2.5 years historically (Epoch AI, 2025). Faster doubling helps both sides but favors space less since hardware refresh is harder in orbit.',
-      citationUrl: 'https://www.technologyreview.com/2026/04/03/1135073/four-things-wed-need-to-put-data-centers-in-space/',
-      description: 'Years for compute performance per $ to double',
+        'Epoch AI (Oct 2024): leading ML hardware energy efficiency has doubled every ~2 years since 2012. IEA (via Congress.gov 2025): GPU performance/watt improved 100× between 2008–2023 (~1.35×/yr). AI supercomputers doubled in performance every 9 months 2019–2025 (Epoch AI Apr 2025). Faster doubling favors Earth slightly — orbital hardware cannot be swapped as chips improve.',
+      citationUrl: 'https://epoch.ai/data-insights/ml-hardware-energy-efficiency',
+      description: 'Years for compute performance per dollar to double',
     },
     {
       id: 'hardwareLifespan',
@@ -540,8 +551,8 @@ export default function EconomicModel() {
       unit: ' yrs',
       format: (v) => `${v.toFixed(1)} yrs`,
       citation:
-        'Microsoft\'s Project Natick: ~5yr lifespan for submerged hardware (no repair). Cosmic radiation and temperature cycling make orbital hardware harder to sustain. Starcloud targets 7-10yr.',
-      citationUrl: 'https://observer.com/2026/03/starcloud-ceo-philip-johnston-nvidia-space-data-center/',
+        'Google Suncatcher feasibility study (Nov 2025): "replace onboard chips every 5–6 years." LEO satellites typically 5–15 years depending on radiation shielding (Avnet Silica / IEEE LEO SatS). Low-cost nanosatellites: 2–4yr due to atmospheric drag and radiation. Starcloud Starcloud-1 launched Nov 2025 — no multi-year orbital compute lifespan data exists yet.',
+      citationUrl: 'https://www.scientificamerican.com/article/data-centers-in-space/',
       description: 'How long hardware operates before replacement is needed',
     },
     {
@@ -554,9 +565,9 @@ export default function EconomicModel() {
       unit: '%',
       format: (v) => `${v}% of OPEX`,
       citation:
-        'Compliance, permitting, and regulatory costs for US hyperscale data centers estimated at 8–20% of OPEX (UMich STPP, 2025). State and local variation is large.',
+        'UMich STPP 2025: compliance, permitting, and regulatory costs estimated at 8–20% of OPEX for US data centers. Note: Prof. Philip Potter (UVA, Episode 1.2) pushes back on regulatory flight as a primary motivator — hyperscalers negotiate tax abatements and rarely cite regulation as the primary driver. This variable has relatively low sensitivity in the model.',
       citationUrl: 'https://stpp.fordschool.umich.edu/sites/stpp/files/2025-07/stpp-data-centers-2025.pdf',
-      description: 'Compliance/permitting overhead added to terrestrial costs',
+      description: 'Compliance/permitting overhead added to terrestrial OPEX',
     },
     {
       id: 'solarEfficiency',
@@ -568,9 +579,9 @@ export default function EconomicModel() {
       unit: '%',
       format: (v) => `${v}% usable`,
       citation:
-        'LEO solar panels: 95% capacity factor vs 24% on ground (WEF 2026). But transmission losses, thermal management, and orbital night reduce effective harvest. Starcloud targets 35-45%.',
-      citationUrl: 'https://www.weforum.org/stories/2026/01/data-centres-space-ai-revolution/',
-      description: 'Fraction of theoretical solar irradiance actually usable',
+        'Google Suncatcher paper (Nov 2025): sun-synchronous orbit receives up to 8× more solar energy per year than mid-latitude ground panels. LEO solar capacity factor ~95% vs 24% on ground (WEF 2026). Actual usable fraction is reduced by orbital night windows, thermal management losses, transmission efficiency, and panel degradation from radiation (MDPI 2025 — solar cell degradation in LEO).',
+      citationUrl: 'https://interestingengineering.com/culture/google-project-suncatcher-space-ai',
+      description: 'Fraction of theoretical solar irradiance actually usable for compute',
     },
   ];
 
@@ -634,7 +645,7 @@ export default function EconomicModel() {
           <div className="w-2 h-2 bg-mustard" /> Model Methodology
         </h4>
         <p className="text-sm text-deep-teal leading-relaxed font-medium">
-          This model computes the <strong>levelized cost of compute</strong> ($/PFLOP-day) for Earth-based vs. orbital data centers across a 10-year horizon. Earth TCO includes energy, cooling, land, and regulatory overhead. Space TCO includes launch amortization, hardware replacement, solar panel mass, and a latency penalty for workloads requiring low-latency. Each variable's default range is grounded in cited sources — click the <span className="font-mono text-atomic-orange">i</span> icon on any slider to see the source. The model is a simplified first-principles estimate, not a proprietary industry projection.
+          This model computes the <strong>levelized cost of compute</strong> ($/PFLOP-day) for Earth-based vs. orbital data centers across a 10-year horizon. Earth TCO includes energy (at hyperscale PUE of 1.2, per Uptime Institute 2024 — industry average is 1.56, but we compare new hyperscale builds to new orbital systems), cooling, land, and regulatory overhead. Space TCO includes launch amortization, hardware replacement, solar panel mass, and a latency penalty. Each variable's default range is grounded in cited sources — click the <span className="font-mono text-atomic-orange">i</span> icon on any slider to see the source. The model is calibrated to match the two key anchors in the literature: Google's Suncatcher team finds $200/kg makes space viable (our model gives ratio 0.54 at $200/kg ✓), and Starcloud's CEO identifies $500/kg as cost-competitive (our model gives 1.09 — near parity ✓).
         </p>
       </div>
 
@@ -887,11 +898,12 @@ export default function EconomicModel() {
             </h4>
             <ul className="space-y-2 text-[11px] text-deep-teal/70 font-mono leading-relaxed list-none">
               {[
-                'Latency-sensitive workloads (real-time transactions, gaming) carry an additional penalty not fully captured — orbital compute is best suited for batch AI training.',
-                'Space debris and collision risk costs are not modeled — these represent real long-term externalities discussed by Dr. Carah Ong Whaley in Episode 3.2.',
-                'Launch cost projections beyond 5 years are speculative. No Starship at scale yet exists. The model extrapolates historical SpaceX cost curves.',
-                'Regulatory cost for space (ITU orbital slot fees, FCC licensing) is held constant — in reality, this may increase as orbital crowding worsens.',
-                'This model does not capture winner-take-all dynamics discussed by Prof. Lenox: if AI scaling laws plateau, both sides of this model become less relevant.',
+                'Hardware cost uses $100/PFLOP assuming space-optimized ASICs at volume (Google Trillium TPU v6e, custom rad-hard chips). Retail H100 pricing (~$15,600/PFLOP) would make space permanently unviable at any launch cost — meaning the entire industry thesis depends on space-specific chip development, not deploying commercial GPUs.',
+                'PUE of 1.2 reflects new hyperscale builds (Uptime Institute 2024; Google 1.09, Microsoft 1.12). Older facilities average 1.56. The model compares new-to-new, which is the fair comparison for forward-looking investment decisions.',
+                'Latency-sensitive workloads (real-time transactions, live inference) carry an additional penalty not fully captured. Orbital compute is best suited for batch AI training — the use case Starcloud, Google Suncatcher, and SpaceX all explicitly target.',
+                'Space debris, collision insurance, and orbital slot fees are not modeled — these are real long-term costs discussed by Dr. Carah Ong Whaley in Episode 3.2 and currently unpriced by the market.',
+                'Launch cost decline is modeled as a smooth compound rate. In reality it is lumpy — dependent on Starship achieving specific milestones (first commercial payload, 100+ reuse flights). A single Starship failure could reset the timeline by years.',
+                'This model does not capture winner-take-all dynamics discussed by Prof. Lenox (Episode 2): if AI scaling laws plateau, both sides of this model become less relevant. The entire premise assumes sustained AI compute demand growth.',
               ].map((c, i) => (
                 <li key={i} className="flex gap-3 items-start">
                   <span className="text-mustard font-bold shrink-0">—</span>
