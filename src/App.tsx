@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-
+import EconomicModel from './EconomicModel';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 // --- Types ---
-type Page = 'home' | 'regulatory-frameworks' | 'economic-feasibility' | 'environment' | 'resources';
+type Page = 'home' | 'regulatory-frameworks' | 'economic-feasibility' | 'environment' | 'resources' | 'economic-model';
 
 interface Episode {
   id: string;
@@ -62,6 +62,7 @@ const Navbar = ({ currentPage, setPage }: { currentPage: Page; setPage: (p: Page
     { label: 'Economic Feasibility', value: 'economic-feasibility' },
     { label: 'Environment', value: 'environment' },
     { label: 'Resources', value: 'resources' },
+    { label: 'Economic Model', value: 'economic-model' },
   ];
 
   return (
@@ -1028,6 +1029,8 @@ export default function App() {
                 episodes={environmentEpisodes}
               />
             )}
+
+            {page === 'economic-model' && <EconomicModel />}
 
             {page === 'resources' && <NextPage />}
           </motion.div>
