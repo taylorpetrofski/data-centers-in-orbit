@@ -726,7 +726,6 @@ export default function EconomicModel() {
       value: params.discountRate,
       format: (v) => `${v}%`,
       unit: '%',
-      isNew: true,
       citation: 'Required annual return rate for NPV discounting. Infrastructure project finance: 7–9% (green bonds, 2025). Venture capital floor: 20–30%. JPMorgan infrastructure fund WACC: 8–12% (2025). Higher discount rates penalize space more — upfront launch capex is heavily discounted, while Earth\'s ongoing opex is spread evenly.',
       citationUrl: 'https://www.congress.gov/crs-product/R48646',
       description: 'Required annual return for discounting future costs to present value',
@@ -738,7 +737,6 @@ export default function EconomicModel() {
       value: params.computeDemandGrowthRate,
       format: (v) => `${v}%/yr`,
       unit: '%/yr',
-      isNew: true,
       citation: 'IEA "Energy and AI" (June 2024): AI electricity demand projected +26–40%/yr through 2030. Goldman Sachs 2025: data center power demand +165% by 2030 (≈60%/yr). FERC 2025 capacity markets: PJM capacity prices up 800% 2024→2025 auction due to data center load growth. Faster demand growth stresses grid, accelerating terrestrial energy price inflation above the 1.8%/yr EIA baseline.',
       citationUrl: 'https://www.iea.org/reports/energy-and-ai',
       description: 'Annual growth in AI compute demand — drives grid stress and earth energy price pressure',
@@ -858,36 +856,6 @@ export default function EconomicModel() {
         </div>
       </motion.div>
 
-      {/* Methodology note */}
-      <div className="mb-8 bg-white/60 retro-border p-6 max-w-4xl">
-        <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-deep-teal/60 mb-3 flex items-center gap-2">
-          <div className="w-2 h-2 bg-mustard" /> Model Methodology (v3 — fully sourced)
-        </h4>
-        <p className="text-sm text-deep-teal leading-relaxed font-medium mb-3">
-          Computes <strong>NPV-adjusted levelized cost of compute</strong> ($/PFLOP-day, fp16 no-sparsity) for Earth vs. orbital data centers over 10 years.
-          All fixed constants are derived from primary sources with derivations shown in code comments. Three major corrections in v3:
-        </p>
-        <ul className="text-sm text-deep-teal leading-relaxed space-y-1 ml-4">
-          <li><strong>kWh/PFLOP-day:</strong> Corrected from 2.4 to <strong>51.5</strong>, derived directly from NVIDIA DGX H100 spec sheet (8.5 kW system / 3.96 PFLOPS fp16 no-sparsity × 24h). Prior value was unverifiable against any published spec.</li>
-          <li><strong>Ops cost:</strong> Now 7%/yr sourced to Intelsat/SES combined 2023–2024 annual filings ($700–800M OPEX on ~$10B satellite asset base).</li>
-          <li><strong>Energy inflation:</strong> Corrected from 3%/yr (unsourced) to <strong>1.8%/yr</strong>, from EIA AEO 2025 Reference case (13¢ → 20¢/kWh by 2050, ~1.75%/yr compound).</li>
-        </ul>
-        <p className="text-sm text-deep-teal leading-relaxed mt-3">
-          Calibration anchors: Google Suncatcher finds $200/kg makes space viable. At $200/kg with current preset, this model gives ratio ~0.48 ✓. Starcloud CEO: $500/kg = cost-competitive; model gives ~1.15 at $500/kg (close to parity, directionally correct ✓).
-        </p>
-      </div>
-
-      {/* Key assumption callout */}
-      <div className="mb-10 bg-deep-teal text-cream p-5 max-w-4xl retro-border">
-        <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-cream/60 mb-2">⚠ Important shift from v1/v2</div>
-        <p className="text-sm font-medium leading-relaxed">
-          The corrected kWh/PFLOP-day (51.5 vs. prior 2.4) makes earth energy cost ~21× higher in absolute terms.
-          This actually <em>tightens</em> the space/earth competition — higher earth energy costs make space more attractive relative to prior model estimates.
-          However, it also reveals that the solar panel mass requirement is ~21× larger than previously modeled,
-          raising the space launch mass per PFLOP significantly. The net effect is a more accurate model that
-          honestly represents how energy-dominated the earth cost structure is — and how critical solar panel mass efficiency is for the space case.
-        </p>
-      </div>
 
       {/* Scenario presets */}
       <div className="mb-10">
