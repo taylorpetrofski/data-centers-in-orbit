@@ -215,20 +215,42 @@ function buildInterpretation(params: Record<string, number>, modelData: ReturnTy
 
 const InfoTooltip = ({ text, url }: { text: string; url: string }) => {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
   const ref = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      // Prefer opening to the right; if too close to right edge, open left
+      const spaceRight = window.innerWidth - r.right;
+      const tooltipW = 288; // w-72
+      const left = spaceRight > tooltipW + 8 ? r.right + 4 : r.left - tooltipW - 4;
+      // Prefer opening downward; flip up if near bottom
+      const spaceBelow = window.innerHeight - r.bottom;
+      const top = spaceBelow > 160 ? r.top : r.bottom - 160;
+      setPos({ top, left });
+    }
+    setOpen(o => !o);
+  };
+
   return (
     <div ref={ref} className="relative inline-block ml-1.5 align-middle">
-      <button type="button" onClick={() => setOpen(o => !o)}
+      <button ref={btnRef} type="button" onClick={handleOpen}
         className="w-4 h-4 rounded-full border border-deep-teal/30 flex items-center justify-center text-[8px] font-mono font-bold text-deep-teal/40 hover:border-atomic-orange hover:text-atomic-orange transition-colors flex-shrink-0">
         i
       </button>
       {open && (
-        <div className="absolute left-6 top-0 z-50 w-72 bg-white border-2 border-deep-teal shadow-[4px_4px_0px_0px_rgba(13,71,78,1)] p-3 text-[11px] text-deep-teal leading-relaxed">
+        <div
+          className="fixed z-[9999] w-72 bg-white border-2 border-deep-teal shadow-[4px_4px_0px_0px_rgba(13,71,78,1)] p-3 text-[11px] text-deep-teal leading-relaxed"
+          style={{ top: pos.top, left: pos.left }}
+        >
           <p className="mb-2">{text}</p>
           <a href={url} target="_blank" rel="noreferrer" className="text-atomic-orange underline font-bold break-all">View source →</a>
         </div>
@@ -851,17 +873,7 @@ export default function EconomicModel() {
               </ul>
             </div>
 
-            {/* Confidence */}
-            <div className="border-t border-cream/15 pt-4">
-              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cream/50 mb-1.5">Confidence Level</div>
-              <div className="text-[11px] font-mono text-cream/80 leading-relaxed">{interpretation.confidence}</div>
-              {/* Confidence visual */}
-              <div className="mt-2 h-1.5 bg-cream/15 w-full">
-                <div className="h-full bg-atomic-orange transition-all duration-700" style={{
-                  width: ratio5 < 1.05 ? '75%' : ratio5 < 1.3 ? '55%' : ratio5 < 1.8 ? '35%' : '20%'
-                }} />
-              </div>
-            </div>
+
           </div>
 
           {/* Key insight card */}
@@ -893,17 +905,11 @@ export default function EconomicModel() {
         <div className="xl:hidden lg:col-span-2 bg-deep-teal text-cream p-5">
           <div className="text-[9px] font-mono uppercase tracking-[0.4em] text-cream/50 mb-3">Model Interpretation</div>
           <p className="text-sm font-bold leading-snug text-cream mb-3">{interpretation.currentVerdict}</p>
-          <div className="grid sm:grid-cols-2 gap-4 text-[11px] font-mono">
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.3em] text-cream/50 mb-1.5">Largest Risk Factors</div>
-              <ul className="space-y-1">
-                {interpretation.risks.map((r, i) => <li key={i} className="flex gap-2 items-start text-cream/75"><span className="text-mustard shrink-0">⚠</span>{r}</li>)}
-              </ul>
-            </div>
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.3em] text-cream/50 mb-1.5">Confidence</div>
-              <p className="text-cream/75 leading-relaxed">{interpretation.confidence}</p>
-            </div>
+          <div className="text-[11px] font-mono">
+            <div className="text-[9px] uppercase tracking-[0.3em] text-cream/50 mb-1.5">Largest Risk Factors</div>
+            <ul className="space-y-1">
+              {interpretation.risks.map((r, i) => <li key={i} className="flex gap-2 items-start text-cream/75"><span className="text-mustard shrink-0">⚠</span>{r}</li>)}
+            </ul>
           </div>
         </div>
       </div>
