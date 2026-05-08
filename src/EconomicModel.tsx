@@ -208,7 +208,13 @@ function buildInterpretation(params: Record<string, number>, modelData: ReturnTy
     : ratio5 < 1.5 ? 'Moderate — scenario is plausible given continued Starship progress'
     : 'Low-Moderate — requires optimistic assumptions on multiple dimensions simultaneously';
 
-  return { currentVerdict, trajectory, mainDrivers, mainHelpers, risks, confidence, breakEvenYear };
+  const bottomLine = breakEvenYear
+    ? `Under current assumptions, orbital compute crosses the cost threshold around ${breakEvenYear} — contingent on launch costs declining at ${params.launchCostDeclineRate}%/yr and space-grade ASICs reaching ~$${params.hwCostPerPflop}/PFLOP.`
+    : ratio5 < 1.3
+    ? `Orbital compute approaches parity with terrestrial hyperscalers by 2030, but does not clearly cross over within the decade without further improvement in launch economics or hardware cost.`
+    : `Under current assumptions, orbital compute is unlikely to beat terrestrial hyperscalers before the mid-2030s unless launch costs continue declining at double-digit annual rates.`;
+
+  return { currentVerdict, trajectory, mainDrivers, mainHelpers, risks, confidence, breakEvenYear, bottomLine };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -519,7 +525,7 @@ export default function EconomicModel() {
                   ? 'bg-deep-teal text-cream border-deep-teal'
                   : 'bg-transparent text-deep-teal border-deep-teal/30 hover:border-deep-teal'
               }`}>
-              {s === 'pessimistic' ? 'Pessimistic 2025' : s === 'current' ? 'Current 2025' : 'Optimistic 2030'}
+              {s === 'pessimistic' ? 'Conservative Case' : s === 'current' ? 'Base Case' : 'Frontier Adoption'}
             </button>
           ))}
         </div>
@@ -827,88 +833,104 @@ export default function EconomicModel() {
         </div>
 
         {/* ── RIGHT: Model Interpretation ──────────────────────────────────── */}
-        <div className="space-y-4 xl:block hidden">
-          <div className="bg-deep-teal text-cream p-5 shadow-[4px_4px_0px_0px_rgba(13,71,78,0.25)]">
-            <div className="text-[9px] font-mono uppercase tracking-[0.4em] text-cream/50 mb-3 flex items-center gap-2">
-              <Info className="w-3 h-3" /> Model Interpretation
-            </div>
+        <div className="space-y-3 xl:block hidden">
 
-            {/* Current result */}
-            <div className="mb-5">
-              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cream/50 mb-1.5">Current Result</div>
-              <p className="text-sm font-bold leading-snug text-cream">{interpretation.currentVerdict}</p>
+          {/* Main panel */}
+          <div className="bg-deep-teal text-cream shadow-[4px_4px_0px_0px_rgba(13,71,78,0.25)] divide-y divide-cream/10">
+
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4">
+              <div className="text-[9px] font-mono uppercase tracking-[0.45em] text-cream/40 mb-2">Analysis</div>
+              <p className="text-[13px] font-bold leading-snug text-cream">{interpretation.currentVerdict}</p>
             </div>
 
             {/* Trajectory */}
-            <div className="mb-5">
-              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cream/50 mb-1.5">Trajectory</div>
-              <p className="text-[11px] font-mono text-cream/80 leading-relaxed capitalize">
-                Space economics are <span className="text-atomic-orange font-bold">{interpretation.trajectory}</span> relative to Earth over the 10-year window.
+            <div className="px-5 py-4">
+              <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-cream/40 mb-2">10-Year Trajectory</div>
+              <p className="text-[11px] font-mono text-cream/75 capitalize">
+                Space economics are{' '}
+                <strong className="text-atomic-orange">{interpretation.trajectory}</strong>{' '}
+                relative to Earth.
               </p>
             </div>
 
             {/* Main drivers */}
             {interpretation.mainDrivers.length > 0 && (
-              <div className="mb-5">
-                <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cream/50 mb-2">Main Drivers for Space</div>
-                <ul className="space-y-1.5">
+              <div className="px-5 py-4">
+                <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-cream/40 mb-2.5">Favorable Conditions</div>
+                <ul className="space-y-2">
                   {interpretation.mainDrivers.map((d, i) => (
-                    <li key={i} className="flex items-start gap-2 text-[11px] font-mono text-cream/80 leading-tight">
-                      <span className="text-atomic-orange mt-0.5 shrink-0">→</span>{d}
+                    <li key={i} className="flex items-baseline gap-2 text-[11px] font-mono text-cream/75">
+                      <span className="text-atomic-orange shrink-0 font-bold">→</span>
+                      <span className="capitalize">{d}</span>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {/* Risk factors */}
-            <div className="mb-5">
-              <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-cream/50 mb-2">Largest Risk Factors</div>
-              <ul className="space-y-1.5">
+            {/* Risks */}
+            <div className="px-5 py-4">
+              <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-cream/40 mb-2.5">Key Risks</div>
+              <ul className="space-y-2">
                 {interpretation.risks.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[11px] font-mono text-cream/75 leading-tight">
-                    <span className="text-mustard mt-0.5 shrink-0">⚠</span>{r}
+                  <li key={i} className="flex items-baseline gap-2 text-[11px] font-mono text-cream/70">
+                    <span className="text-mustard shrink-0">⚠</span>
+                    <span>{r}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-
+            {/* Bottom line */}
+            <div className="px-5 py-4">
+              <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-atomic-orange/70 mb-2">Bottom Line</div>
+              <p className="text-[11px] font-mono text-cream/85 leading-relaxed">{interpretation.bottomLine}</p>
+            </div>
           </div>
 
-          {/* Key insight card */}
-          <div className="bg-atomic-orange/8 border-2 border-atomic-orange/30 p-4">
-            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-atomic-orange/70 mb-2">Key Insight</div>
+          {/* Key insight */}
+          <div className="border-2 border-atomic-orange/25 bg-atomic-orange/5 px-4 py-3.5">
+            <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-atomic-orange/60 mb-1.5">Most Sensitive Variable</div>
             <p className="text-[11px] font-mono text-deep-teal leading-relaxed">
               {sensitivityData[0]?.key === 'hwCostPerPflop'
-                ? 'The model is most sensitive to space hardware cost. No orbital ASICs exist — this is an industry bet, not an engineering certainty.'
+                ? 'Space hardware cost. No orbital ASICs exist — the economics hinge on ASIC development, not Starship.'
                 : sensitivityData[0]?.key === 'launchCostDeclineRate'
-                ? 'The model is most sensitive to how fast launch costs fall. This is almost entirely a function of Starship achieving its reuse targets.'
+                ? 'Launch cost decline rate. Almost entirely a function of Starship achieving its reuse targets.'
                 : sensitivityData[0]?.key === 'computeDemandGrowthRate'
-                ? 'The model is most sensitive to AI compute demand growth — the faster demand outpaces grid capacity, the stronger the space case.'
-                : `The most load-bearing assumption is ${sensitivityData[0]?.key}. A ±20% change shifts the 2030 viability ratio by ${(sensitivityData[0]?.swing * 100).toFixed(1)}%.`
+                ? 'AI compute demand growth. Faster demand outpacing grid capacity strengthens the space case.'
+                : `${sensitivityData[0]?.key} — a ±20% shift moves the 2030 ratio by ${(sensitivityData[0]?.swing * 100).toFixed(1)}%.`
               }
             </p>
           </div>
 
-          {/* Methodology note */}
-          <div className="border-2 border-deep-teal/15 p-4 bg-white/50">
-            <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-deep-teal/45 mb-2">Methodology</div>
-            <p className="text-[10px] font-mono text-deep-teal/60 leading-relaxed">
-              NPV-adjusted levelized cost of compute ($/PFLOP-day, fp16 no-sparsity) over 10 years.
-              Fixed constants derived from primary sources. Monte Carlo uncertainty bands from 300 runs at ±25% parameter perturbation.
+          {/* Methodology */}
+          <div className="border-2 border-deep-teal/12 px-4 py-3.5 bg-white/40">
+            <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-deep-teal/40 mb-1.5">Methodology</div>
+            <p className="text-[10px] font-mono text-deep-teal/55 leading-relaxed">
+              NPV-adjusted levelized cost of compute ($/PFLOP-day, fp16 no-sparsity) over 10 years. Fixed constants from primary sources. ±25% Monte Carlo, 300 runs.
             </p>
           </div>
         </div>
 
-        {/* Mobile interpretation panel (shown below chart on smaller screens) */}
-        <div className="xl:hidden lg:col-span-2 bg-deep-teal text-cream p-5">
-          <div className="text-[9px] font-mono uppercase tracking-[0.4em] text-cream/50 mb-3">Model Interpretation</div>
-          <p className="text-sm font-bold leading-snug text-cream mb-3">{interpretation.currentVerdict}</p>
-          <div className="text-[11px] font-mono">
-            <div className="text-[9px] uppercase tracking-[0.3em] text-cream/50 mb-1.5">Largest Risk Factors</div>
-            <ul className="space-y-1">
-              {interpretation.risks.map((r, i) => <li key={i} className="flex gap-2 items-start text-cream/75"><span className="text-mustard shrink-0">⚠</span>{r}</li>)}
+        {/* Mobile interpretation panel */}
+        <div className="xl:hidden lg:col-span-2 bg-deep-teal text-cream divide-y divide-cream/10">
+          <div className="px-5 pt-5 pb-4">
+            <div className="text-[9px] font-mono uppercase tracking-[0.4em] text-cream/40 mb-2">Analysis</div>
+            <p className="text-sm font-bold leading-snug text-cream">{interpretation.currentVerdict}</p>
+          </div>
+          <div className="px-5 py-4">
+            <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-atomic-orange/70 mb-1.5">Bottom Line</div>
+            <p className="text-[11px] font-mono text-cream/80 leading-relaxed">{interpretation.bottomLine}</p>
+          </div>
+          <div className="px-5 py-4">
+            <div className="text-[9px] font-mono uppercase tracking-[0.35em] text-cream/40 mb-2">Key Risks</div>
+            <ul className="space-y-1.5">
+              {interpretation.risks.map((r, i) => (
+                <li key={i} className="flex gap-2 items-baseline text-[11px] font-mono text-cream/70">
+                  <span className="text-mustard shrink-0">⚠</span>{r}
+                </li>
+              ))}
             </ul>
           </div>
         </div>
